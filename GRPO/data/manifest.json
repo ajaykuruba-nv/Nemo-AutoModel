@@ -1,0 +1,7 @@
+{
+  "dataset_id": "ekacare/clinical_note_generation_dataset",
+  "source_split": "test",
+  "seed": 42,
+  "train_samples": 140,
+  "validation_samples": 16
+}

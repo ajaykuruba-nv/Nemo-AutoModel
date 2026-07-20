@@ -1,0 +1,8 @@
+.env
+data/*.jsonl
+logs/
+results/
+__pycache__/
+.pytest_cache/
+*.pyc
+

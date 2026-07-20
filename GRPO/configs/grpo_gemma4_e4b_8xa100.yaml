@@ -1,0 +1,163 @@
+# Native uv workflow: inherit from the checked-out NeMo RL source tree.
+defaults: /userhome/home/akumarkuruba/rl/nemo-rl/examples/configs/grpo_math_1B.yaml
+
+grpo:
+  num_prompts_per_step: 8
+  num_generations_per_prompt: 4
+  max_rollout_turns: 1
+  max_num_epochs: 3
+  max_num_steps: 1000000
+  val_period: 5
+  val_at_start: true
+  val_at_end: true
+  max_val_samples: null
+  val_batch_size: null
+  normalize_rewards: true
+  use_leave_one_out_baseline: true
+
+loss_fn:
+  reference_policy_kl_penalty: 0.01
+  reference_policy_kl_type: k3
+  token_level_loss: true
+
+checkpointing:
+  enabled: true
+  checkpoint_dir: /userhome/home/akumarkuruba/Ekacare/results/gemma4-e4b-clinical-grpo
+  metric_name: "val:accuracy"
+  higher_is_better: true
+  keep_top_k: 3
+  save_period: 5
+  model_save_format: safetensors
+  save_optimizer: true
+
+policy:
+  model_name: google/gemma-4-E4B-it
+  tokenizer:
+    name: google/gemma-4-E4B-it
+    chat_template_kwargs:
+      enable_thinking: false
+  train_global_batch_size: 32
+  train_micro_batch_size: 1
+  logprob_batch_size: 1
+  max_total_sequence_length: 4096
+  precision: bfloat16
+  logprob_chunk_size: 4096
+  optimizer:
+    name: torch.optim.AdamW
+    kwargs:
+      lr: 1.0e-6
+      weight_decay: 0.1
+      betas: [0.9, 0.999]
+      eps: 1.0e-8
+  scheduler:
+    - name: torch.optim.lr_scheduler.LinearLR
+      kwargs:
+        start_factor: 0.1
+        end_factor: 1.0
+        total_iters: 5
+    - name: torch.optim.lr_scheduler.ConstantLR
+      kwargs:
+        factor: 1.0
+        total_iters: 10000000000
+    - milestones: [5]
+  dtensor_cfg:
+    _v2: true
+    enabled: true
+    cpu_offload: false
+    activation_checkpointing: true
+    tensor_parallel_size: 1
+    context_parallel_size: 1
+    automodel_kwargs:
+      backend:
+        _target_: nemo_automodel.components.models.common.utils.BackendConfig
+        attn: sdpa
+        linear: torch
+        rms_norm: torch_fp32
+        experts: torch
+        dispatcher: torch
+        rope_fusion: false
+      freeze_config:
+        freeze_vision_tower: true
+        freeze_audio_tower: true
+        freeze_language_model: false
+  dynamic_batching:
+    enabled: true
+    train_mb_tokens: 4096
+    logprob_mb_tokens: 4096
+    sequence_length_round: 64
+  sequence_packing:
+    enabled: false
+  make_sequence_length_divisible_by: 1
+  generation:
+    backend: vllm
+    max_new_tokens: 2048
+    temperature: 1.0
+    top_p: 1.0
+    top_k: null
+    vllm_cfg:
+      async_engine: true
+      precision: bfloat16
+      tensor_parallel_size: 4
+      pipeline_parallel_size: 1
+      gpu_memory_utilization: 0.5
+      max_model_len: 4096
+      enforce_eager: true
+      skip_tokenizer_init: false
+      expose_http_server: true
+    vllm_kwargs:
+      mm_processor_cache_gb: 0
+    colocated:
+      enabled: true
+      resources:
+        gpus_per_node: null
+        num_nodes: null
+
+data:
+  max_input_seq_length: 2048
+  shuffle: true
+  num_workers: 0
+  use_multiple_dataloader: false
+  train:
+    data_path: /userhome/home/akumarkuruba/Ekacare/data/train.jsonl
+  validation:
+    data_path: /userhome/home/akumarkuruba/Ekacare/data/validation.jsonl
+  default:
+    dataset_name: NemoGymDataset
+    env_name: nemo_gym
+    prompt_file: null
+    system_prompt_file: null
+    processor: nemo_gym_data_processor
+
+env:
+  _override_: true
+  should_use_nemo_gym: true
+  should_log_nemo_gym_responses: true
+  nemo_gym:
+    port_range_low: 15001
+    port_range_high: 20000
+    rollout_max_attempts_to_avoid_lp_nan: 1
+    is_trajectory_collection: false
+    config_paths:
+      - responses_api_models/vllm_model/configs/vllm_model_for_training.yaml
+      - configs/clinical_note_gym.yaml
+    policy_model:
+      responses_api_models:
+        vllm_model:
+          uses_reasoning_parser: false
+          extra_body:
+            chat_template_kwargs:
+              enable_thinking: false
+
+logger:
+  log_dir: /userhome/home/akumarkuruba/Ekacare/logs/gemma4-e4b-clinical-grpo
+  num_val_samples_to_print: 2
+  wandb_enabled: false
+  tensorboard_enabled: true
+  monitor_gpus: true
+  wandb:
+    project: ekacare-clinical-grpo
+    name: gemma4-e4b-8xa100
+
+cluster:
+  gpus_per_node: 8
+  num_nodes: 1

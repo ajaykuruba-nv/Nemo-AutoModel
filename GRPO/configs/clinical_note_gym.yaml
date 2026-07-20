@@ -1,0 +1,57 @@
+# Custom NeMo Gym instance names, backed by Gym's maintained rubric server and
+# simple agent implementation. The colocated policy vLLM endpoint is also the
+# judge, so no GPU beyond the eight training GPUs is required.
+clinical_note:
+  resources_servers:
+    multichallenge:
+      entrypoint: app.py
+      judge_model_server:
+        type: responses_api_models
+        name: policy_model
+      judge_responses_create_params:
+        input: []
+        max_output_tokens: 256
+        # NeMo RL requires these to match policy generation sampling values.
+        temperature: 1.0
+        top_p: 1.0
+      aggregation_mode: weighted
+      parallel_evaluation: true
+      judge_system_message: >-
+        You are a strict clinical documentation evaluator. Judge only whether
+        the candidate note satisfies the stated criterion using facts present
+        in the clinical conversation. Do not reward unsupported inferences.
+      judge_prompt_template: |-
+        Evaluate one criterion for a generated clinical note.
+
+        CLINICAL CONVERSATION:
+        {context}
+
+        CANDIDATE CLINICAL NOTE:
+        {response}
+
+        CRITERION:
+        {question}
+
+        EXPECTED VERDICT: {pass_criteria}
+
+        Decide whether the candidate satisfies the criterion faithfully and
+        without contradicting the conversation. End with exactly [[YES]] or
+        [[NO]].
+      yes_label: "[[YES]]"
+      no_label: "[[NO]]"
+      domain: healthcare
+      verified: false
+
+clinical_note_simple_agent:
+  responses_api_agents:
+    simple_agent:
+      entrypoint: app.py
+      resources_server:
+        type: resources_servers
+        name: clinical_note
+      model_server:
+        type: responses_api_models
+        name: policy_model
+      max_steps: 1
+      verified: false
+
